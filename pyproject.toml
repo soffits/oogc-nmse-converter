@@ -1,0 +1,25 @@
+[project]
+name = "oogc-nmse-converter"
+version = "0.1.0"
+description = "Convert OOGC/NMS Model IO .nmsship ZIP exports into JSON importable by vectorcmdr/NMSE."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "AGPL-3.0-only" }
+authors = [{ name = "Sakina", email = "soffits@users.noreply.github.com" }]
+dependencies = []
+
+[project.scripts]
+oogc-nmse-convert = "oogc_nmse_converter.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = ["pytest>=8.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
