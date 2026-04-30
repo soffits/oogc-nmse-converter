@@ -1,4 +1,4 @@
-"""Convert OOGC / NMS Model IO .nmsship exports to NMSE wrapper JSON."""
+"""Convert OOGC / NMS Model IO exports to NMSE wrapper JSON."""
 
 from __future__ import annotations
 
@@ -65,6 +65,24 @@ def read_nmsship(path: Path, *, include_default_ccd: bool = True) -> dict[str, A
         raise ConversionError(f"{path} is not a valid ZIP file") from exc
 
 
+def read_raw_objects(path: Path) -> dict[str, Any]:
+    """Read a raw objects JSON array and return an NMSE import wrapper object."""
+
+    objects = _read_json_file(Path(path))
+    if not isinstance(objects, list):
+        raise ConversionError(f"{path} must contain a top-level JSON array")
+    return {"Base": {"Objects": objects}}
+
+
+def read_wrapper(path: Path, *, include_default_ccd: bool = True) -> dict[str, Any]:
+    """Read supported input data and return an NMSE import wrapper object."""
+
+    path = Path(path)
+    if _has_zip_magic(path):
+        return read_nmsship(path, include_default_ccd=include_default_ccd)
+    return read_raw_objects(path)
+
+
 def convert_file(
     input_path: Path,
     output_path: Path | None = None,
@@ -73,13 +91,13 @@ def convert_file(
     pretty: bool = True,
     include_default_ccd: bool = True,
 ) -> Path:
-    """Convert an input .nmsship/ZIP file to an NMSE wrapper JSON file."""
+    """Convert a supported input file to an NMSE wrapper JSON file."""
 
     input_path = Path(input_path)
     output_path = (
         Path(output_path) if output_path is not None else default_output_path(input_path, output_format)
     )
-    wrapper = read_nmsship(input_path, include_default_ccd=include_default_ccd)
+    wrapper = read_wrapper(input_path, include_default_ccd=include_default_ccd)
 
     with output_path.open("w", encoding="utf-8") as handle:
         if pretty:
@@ -97,7 +115,8 @@ def extract_members(input_path: Path, output_dir: Path, *, force: bool = False) 
 
     input_path = Path(input_path)
     output_dir = Path(output_dir)
-    _validate_zip_magic(input_path)
+    if not _has_zip_magic(input_path):
+        raise ConversionError("extract only supports ZIP/.nmsship input files")
     output_dir.mkdir(parents=True, exist_ok=True)
 
     try:
@@ -121,7 +140,11 @@ def member_metadata(input_path: Path) -> list[dict[str, Any]]:
     """Return basic member metadata and top-level JSON key information."""
 
     input_path = Path(input_path)
-    _validate_zip_magic(input_path)
+    if not _has_zip_magic(input_path):
+        objects = _read_json_file(input_path)
+        if not isinstance(objects, list):
+            raise ConversionError(f"{input_path} must contain a top-level JSON array")
+        return [{"name": input_path.name, "size": input_path.stat().st_size, "items": len(objects)}]
 
     try:
         with zipfile.ZipFile(input_path) as archive:
@@ -189,14 +212,28 @@ def _read_json_member(archive: zipfile.ZipFile, member: str) -> Any:
         raise ConversionError(f"{member} is not valid JSON: {exc.msg}") from exc
 
 
-def _validate_zip_magic(path: Path) -> None:
+def _read_json_file(path: Path) -> Any:
+    try:
+        with path.open(encoding="utf-8") as handle:
+            return json.load(handle)
+    except OSError as exc:
+        raise ConversionError(f"cannot read input file {path}: {exc}") from exc
+    except json.JSONDecodeError as exc:
+        raise ConversionError(f"{path} is not valid JSON: {exc.msg}") from exc
+
+
+def _has_zip_magic(path: Path) -> bool:
     try:
         with path.open("rb") as handle:
             magic = handle.read(4)
     except OSError as exc:
         raise ConversionError(f"cannot read input file {path}: {exc}") from exc
 
-    if magic not in ZIP_MAGIC_PREFIXES:
+    return magic in ZIP_MAGIC_PREFIXES
+
+
+def _validate_zip_magic(path: Path) -> None:
+    if not _has_zip_magic(path):
         raise ConversionError(f"{path} does not look like a ZIP/.nmsship file")
 
 

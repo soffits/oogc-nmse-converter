@@ -1,6 +1,6 @@
 # oogc-nmse-converter
 
-Convert OOGC / NMS Model IO style `.nmsship` ZIP exports into JSON that can be imported by [vectorcmdr/NMSE](https://github.com/vectorcmdr/NMSE).
+Convert OOGC / NMS Model IO style `.nmsship` ZIP exports or raw objects JSON arrays into JSON that can be imported by [vectorcmdr/NMSE](https://github.com/vectorcmdr/NMSE).
 
 This repository was created for converting community-downloaded No Man's Sky ship packages into NMSE's wrapper JSON format.
 
@@ -24,10 +24,13 @@ The converter maps ZIP members without rewriting their schemas:
 - `ccd.json` becomes `CharacterCustomisationData` when present.
 - `objects.json` must be a JSON array and becomes `Base = {"Objects": ...}`.
 
+Raw OOGC/NMS Model IO objects JSON files are also supported when the file contains a top-level JSON array. They are converted to `{"Base": {"Objects": [...]}}` without inventing `Ship` data.
+
 ## Usage
 
 ```sh
 oogc-nmse-convert ship.nmsship
+oogc-nmse-convert objects.json
 ```
 
 By default this writes `ship.nmse.json` next to the input file. Refusing to overwrite existing files is intentional; use `--force` when replacing output is desired.
@@ -40,11 +43,12 @@ oogc-nmse-convert ship.nmsship --nmscorv
 oogc-nmse-convert ship.nmsship --compact --force
 oogc-nmse-convert ship.nmsship --omit-default-ccd
 oogc-nmse-convert ship.nmsship --extract debug-members --metadata
+oogc-nmse-convert objects.json --metadata
 ```
 
-`--extract DIR` writes any present `so.json`, `ccd.json`, and `objects.json` members to `DIR` and still writes the NMSE wrapper JSON.
+`--extract DIR` writes any present `so.json`, `ccd.json`, and `objects.json` ZIP members to `DIR` and still writes the NMSE wrapper JSON. Extraction is only available for `.nmsship`/ZIP input.
 
-`--metadata` prints ZIP member sizes and top-level JSON keys to stderr so stdout can still be used to read the output path.
+`--metadata` prints ZIP member sizes and top-level JSON keys, or the item count for raw objects JSON arrays, to stderr so stdout can still be used to read the output path.
 
 ## Safety
 

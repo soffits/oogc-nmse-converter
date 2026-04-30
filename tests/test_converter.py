@@ -5,7 +5,13 @@ from pathlib import Path
 import pytest
 
 from oogc_nmse_converter.cli import main
-from oogc_nmse_converter.converter import ConversionError, convert_file, read_nmsship
+from oogc_nmse_converter.converter import (
+    ConversionError,
+    convert_file,
+    extract_members,
+    member_metadata,
+    read_nmsship,
+)
 
 
 def write_zip(path: Path, members: dict[str, object]) -> Path:
@@ -117,3 +123,51 @@ def test_cli_refuses_overwrite_without_force(tmp_path: Path, capsys: pytest.Capt
     assert exc_info.value.code == 2
     assert "refusing to overwrite existing file" in capsys.readouterr().err
     assert output_path.read_text(encoding="utf-8") == "existing"
+
+
+def test_convert_raw_objects_json_array(tmp_path: Path):
+    input_path = tmp_path / "objects.json"
+    objects = [
+        {
+            "Timestamp": 123,
+            "ObjectID": "Decoration",
+            "UserData": 0,
+            "Position": [1, 2, 3],
+            "Up": [0, 1, 0],
+            "At": [0, 0, 1],
+        }
+    ]
+    input_path.write_text(json.dumps(objects), encoding="utf-8")
+
+    output_path = convert_file(input_path)
+
+    assert output_path == tmp_path / "objects.nmse.json"
+    assert json.loads(output_path.read_text(encoding="utf-8")) == {"Base": {"Objects": objects}}
+
+
+def test_raw_objects_json_must_be_array(tmp_path: Path):
+    input_path = tmp_path / "objects.json"
+    input_path.write_text(json.dumps({"Objects": []}), encoding="utf-8")
+
+    with pytest.raises(ConversionError, match="top-level JSON array"):
+        convert_file(input_path)
+
+
+def test_metadata_reports_raw_objects_count(tmp_path: Path):
+    input_path = tmp_path / "objects.json"
+    input_path.write_text(json.dumps([{"ObjectID": "One"}, {"ObjectID": "Two"}]), encoding="utf-8")
+
+    assert member_metadata(input_path) == [
+        {"name": "objects.json", "size": input_path.stat().st_size, "items": 2}
+    ]
+
+
+def test_extract_is_zip_only_for_raw_objects_json(tmp_path: Path):
+    input_path = tmp_path / "objects.json"
+    output_dir = tmp_path / "extract"
+    input_path.write_text(json.dumps([{"ObjectID": "Decoration"}]), encoding="utf-8")
+
+    with pytest.raises(ConversionError, match="extract only supports ZIP/.nmsship"):
+        extract_members(input_path, output_dir)
+
+    assert not output_dir.exists()

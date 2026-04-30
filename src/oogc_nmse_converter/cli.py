@@ -19,9 +19,9 @@ from .converter import (
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="oogc-nmse-convert",
-        description="Convert OOGC / NMS Model IO .nmsship ZIP exports to NMSE wrapper JSON.",
+        description="Convert OOGC / NMS Model IO exports to NMSE wrapper JSON.",
     )
-    parser.add_argument("input", type=Path, help="Input .nmsship or ZIP file")
+    parser.add_argument("input", type=Path, help="Input .nmsship/ZIP file or raw objects JSON array")
     parser.add_argument("-o", "--output", type=Path, help="Output wrapper JSON path")
     parser.add_argument(
         "--format",
@@ -47,7 +47,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--metadata",
         action="store_true",
-        help="Print ZIP member sizes and top-level JSON keys to stderr",
+        help="Print input metadata to stderr",
     )
     return parser
 
