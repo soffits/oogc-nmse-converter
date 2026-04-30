@@ -65,22 +65,78 @@ def read_nmsship(path: Path, *, include_default_ccd: bool = True) -> dict[str, A
         raise ConversionError(f"{path} is not a valid ZIP file") from exc
 
 
-def read_raw_objects(path: Path) -> dict[str, Any]:
-    """Read a raw objects JSON array and return an NMSE import wrapper object."""
+def read_raw_objects(path: Path) -> list[Any]:
+    """Read a raw objects JSON array."""
 
     objects = _read_json_file(Path(path))
     if not isinstance(objects, list):
         raise ConversionError(f"{path} must contain a top-level JSON array")
-    return {"Base": {"Objects": objects}}
+    return objects
 
 
-def read_wrapper(path: Path, *, include_default_ccd: bool = True) -> dict[str, Any]:
+def read_template(path: Path, *, include_default_ccd: bool = True) -> dict[str, Any]:
+    """Read an NMSE template wrapper from a wrapper JSON, plain ship JSON, or .nmsship."""
+
+    path = Path(path)
+    if _has_zip_magic(path):
+        return read_nmsship(path, include_default_ccd=include_default_ccd)
+
+    data = _read_json_file(path)
+    if not isinstance(data, dict):
+        raise ConversionError(f"template {path} must contain a JSON object")
+
+    if any(key in data for key in ("Ship", "Base", "CharacterCustomisationData")):
+        ship = data.get("Ship")
+        if ship is None:
+            raise ConversionError(f"template {path} is missing required Ship data")
+        return data
+
+    return {"Ship": data}
+
+
+def apply_objects_template(objects: list[Any], template: dict[str, Any]) -> dict[str, Any]:
+    """Return an NMSE wrapper using template ship data with replacement objects."""
+
+    ship = template.get("Ship")
+    if ship is None:
+        raise ConversionError("template is missing required Ship data")
+
+    wrapper: dict[str, Any] = {"Ship": ship}
+    if "CharacterCustomisationData" in template:
+        wrapper["CharacterCustomisationData"] = template["CharacterCustomisationData"]
+
+    template_base = template.get("Base")
+    if template_base is None:
+        wrapper["Base"] = {"Objects": objects}
+    elif isinstance(template_base, dict):
+        wrapper["Base"] = template_base | {"Objects": objects}
+    else:
+        raise ConversionError("template Base must be a JSON object when present")
+
+    return wrapper
+
+
+def read_wrapper(
+    path: Path,
+    *,
+    include_default_ccd: bool = True,
+    template_path: Path | None = None,
+) -> dict[str, Any]:
     """Read supported input data and return an NMSE import wrapper object."""
 
     path = Path(path)
     if _has_zip_magic(path):
         return read_nmsship(path, include_default_ccd=include_default_ccd)
-    return read_raw_objects(path)
+
+    objects = read_raw_objects(path)
+    if template_path is None:
+        raise ConversionError(
+            "raw objects JSON does not contain Ship data and cannot be imported as a "
+            "standalone NMSE ship; provide --template with an NMSE ship or Corvette export"
+        )
+
+    template = read_template(template_path, include_default_ccd=include_default_ccd)
+    return apply_objects_template(objects, template)
 
 
 def convert_file(
@@ -90,14 +146,20 @@ def convert_file(
     output_format: OutputFormat = "json",
     pretty: bool = True,
     include_default_ccd: bool = True,
+    template_path: Path | None = None,
 ) -> Path:
     """Convert a supported input file to an NMSE wrapper JSON file."""
 
     input_path = Path(input_path)
-    output_path = (
-        Path(output_path) if output_path is not None else default_output_path(input_path, output_format)
+    output_path = Path(output_path) if output_path is not None else default_output_path(
+        input_path,
+        output_format,
     )
-    wrapper = read_wrapper(input_path, include_default_ccd=include_default_ccd)
+    wrapper = read_wrapper(
+        input_path,
+        include_default_ccd=include_default_ccd,
+        template_path=template_path,
+    )
 
     with output_path.open("w", encoding="utf-8") as handle:
         if pretty:
@@ -144,7 +206,9 @@ def member_metadata(input_path: Path) -> list[dict[str, Any]]:
         objects = _read_json_file(input_path)
         if not isinstance(objects, list):
             raise ConversionError(f"{input_path} must contain a top-level JSON array")
-        return [{"name": input_path.name, "size": input_path.stat().st_size, "items": len(objects)}]
+        return [
+            {"name": input_path.name, "size": input_path.stat().st_size, "items": len(objects)}
+        ]
 
     try:
         with zipfile.ZipFile(input_path) as archive:

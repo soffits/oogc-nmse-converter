@@ -21,8 +21,17 @@ def build_parser() -> argparse.ArgumentParser:
         prog="oogc-nmse-convert",
         description="Convert OOGC / NMS Model IO exports to NMSE wrapper JSON.",
     )
-    parser.add_argument("input", type=Path, help="Input .nmsship/ZIP file or raw objects JSON array")
+    parser.add_argument(
+        "input",
+        type=Path,
+        help="Input .nmsship/ZIP file or raw objects JSON array",
+    )
     parser.add_argument("-o", "--output", type=Path, help="Output wrapper JSON path")
+    parser.add_argument(
+        "--template",
+        type=Path,
+        help="NMSE wrapper, plain ship JSON, or .nmsship template for raw objects JSON input",
+    )
     parser.add_argument(
         "--format",
         choices=("json", "nmscorv"),
@@ -36,13 +45,22 @@ def build_parser() -> argparse.ArgumentParser:
         dest="format",
         help="Shortcut for --format nmscorv",
     )
-    parser.add_argument("--compact", action="store_true", help="Write compact JSON instead of pretty JSON")
+    parser.add_argument(
+        "--compact",
+        action="store_true",
+        help="Write compact JSON instead of pretty JSON",
+    )
     parser.add_argument(
         "--omit-default-ccd",
         action="store_true",
         help="Omit ccd.json when it appears to contain only default/blank values",
     )
-    parser.add_argument("--extract", type=Path, metavar="DIR", help="Extract known JSON members to DIR")
+    parser.add_argument(
+        "--extract",
+        type=Path,
+        metavar="DIR",
+        help="Extract known JSON members to DIR",
+    )
     parser.add_argument("--force", action="store_true", help="Allow overwriting output files")
     parser.add_argument(
         "--metadata",
@@ -56,7 +74,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    output_path = args.output if args.output is not None else default_output_path(args.input, args.format)
+    output_path = (
+        args.output
+        if args.output is not None
+        else default_output_path(args.input, args.format)
+    )
     if output_path.exists() and not args.force:
         parser.error(f"refusing to overwrite existing file: {output_path} (use --force)")
 
@@ -75,6 +97,7 @@ def main(argv: list[str] | None = None) -> int:
             output_format=args.format,
             pretty=not args.compact,
             include_default_ccd=not args.omit_default_ccd,
+            template_path=args.template,
         )
     except ConversionError as exc:
         parser.exit(2, f"error: {exc}\n")

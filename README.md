@@ -1,6 +1,6 @@
 # oogc-nmse-converter
 
-Convert OOGC / NMS Model IO style `.nmsship` ZIP exports or raw objects JSON arrays into JSON that can be imported by [vectorcmdr/NMSE](https://github.com/vectorcmdr/NMSE).
+Convert OOGC / NMS Model IO style `.nmsship` ZIP exports into JSON that can be imported by [vectorcmdr/NMSE](https://github.com/vectorcmdr/NMSE), or apply raw objects JSON arrays onto an NMSE ship template.
 
 This repository was created for converting community-downloaded No Man's Sky ship packages into NMSE's wrapper JSON format.
 
@@ -24,13 +24,13 @@ The converter maps ZIP members without rewriting their schemas:
 - `ccd.json` becomes `CharacterCustomisationData` when present.
 - `objects.json` must be a JSON array and becomes `Base = {"Objects": ...}`.
 
-Raw OOGC/NMS Model IO objects JSON files are also supported when the file contains a top-level JSON array. They are converted to `{"Base": {"Objects": [...]}}` without inventing `Ship` data.
+NMSE requires real `Ship` data for StarshipPanel imports. Raw OOGC/NMS Model IO objects JSON files contain only placement objects, so they cannot be imported as standalone ships. To use raw objects, first export a Corvette or ship from NMSE and pass it as `--template`; the converter keeps the template `Ship`, keeps `CharacterCustomisationData` when present, keeps template `Base` properties when present, and replaces only `Base.Objects`.
 
 ## Usage
 
 ```sh
 oogc-nmse-convert ship.nmsship
-oogc-nmse-convert objects.json
+oogc-nmse-convert objects.json --template exported-corvette.nmscorv
 ```
 
 By default this writes `ship.nmse.json` next to the input file. Refusing to overwrite existing files is intentional; use `--force` when replacing output is desired.
@@ -43,8 +43,11 @@ oogc-nmse-convert ship.nmsship --nmscorv
 oogc-nmse-convert ship.nmsship --compact --force
 oogc-nmse-convert ship.nmsship --omit-default-ccd
 oogc-nmse-convert ship.nmsship --extract debug-members --metadata
-oogc-nmse-convert objects.json --metadata
+oogc-nmse-convert objects.json --template exported-corvette.nmscorv
+oogc-nmse-convert objects.json --metadata --template exported-corvette.nmscorv
 ```
+
+`--template PATH` is used for raw objects JSON input. The template may be an NMSE wrapper JSON such as `.nmscorv`, a plain ship JSON object, or a `.nmsship` ZIP export.
 
 `--extract DIR` writes any present `so.json`, `ccd.json`, and `objects.json` ZIP members to `DIR` and still writes the NMSE wrapper JSON. Extraction is only available for `.nmsship`/ZIP input.
 

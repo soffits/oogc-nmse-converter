@@ -125,7 +125,7 @@ def test_cli_refuses_overwrite_without_force(tmp_path: Path, capsys: pytest.Capt
     assert output_path.read_text(encoding="utf-8") == "existing"
 
 
-def test_convert_raw_objects_json_array(tmp_path: Path):
+def test_convert_raw_objects_json_array_without_template_errors(tmp_path: Path):
     input_path = tmp_path / "objects.json"
     objects = [
         {
@@ -139,10 +139,38 @@ def test_convert_raw_objects_json_array(tmp_path: Path):
     ]
     input_path.write_text(json.dumps(objects), encoding="utf-8")
 
-    output_path = convert_file(input_path)
+    with pytest.raises(ConversionError, match="raw objects JSON does not contain Ship data"):
+        convert_file(input_path)
+
+
+def test_convert_raw_objects_json_array_with_wrapper_template(tmp_path: Path):
+    input_path = tmp_path / "objects.json"
+    template_path = tmp_path / "template.nmscorv"
+    objects = [{"ObjectID": "Replacement"}]
+    template = {
+        "Ship": {"Name": "Template Corvette", "Seed": 123},
+        "CharacterCustomisationData": {"SelectedPreset": "PilotPreset"},
+        "Base": {
+            "Name": "Template Base",
+            "UserData": 42,
+            "Objects": [{"ObjectID": "Old"}],
+        },
+    }
+    input_path.write_text(json.dumps(objects), encoding="utf-8")
+    template_path.write_text(json.dumps(template), encoding="utf-8")
+
+    output_path = convert_file(input_path, template_path=template_path)
 
     assert output_path == tmp_path / "objects.nmse.json"
-    assert json.loads(output_path.read_text(encoding="utf-8")) == {"Base": {"Objects": objects}}
+    assert json.loads(output_path.read_text(encoding="utf-8")) == {
+        "Ship": {"Name": "Template Corvette", "Seed": 123},
+        "CharacterCustomisationData": {"SelectedPreset": "PilotPreset"},
+        "Base": {
+            "Name": "Template Base",
+            "UserData": 42,
+            "Objects": objects,
+        },
+    }
 
 
 def test_raw_objects_json_must_be_array(tmp_path: Path):
